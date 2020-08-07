@@ -109,7 +109,7 @@ func executeCheck(event *types.Event) (int, error) {
 	} else {
 		config, err = rest.InClusterConfig()
 		if err != nil {
-			return sensu.CheckStateCritical, fmt.Errorf("Failed to get in InClusterCOnfig: %v", err)
+			return sensu.CheckStateCritical, fmt.Errorf("Failed to get in InClusterConfig: %v", err)
 		}
 	}
 
