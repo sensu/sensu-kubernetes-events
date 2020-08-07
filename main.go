@@ -34,7 +34,7 @@ var (
 	}
 
 	options = []*sensu.PluginConfigOption{
-		&sensu.PluginConfigOption{
+		{
 			Path:      "namespace",
 			Env:       "KUBERNETES_NAMESPACE",
 			Argument:  "namespace",
@@ -43,7 +43,7 @@ var (
 			Usage:     "Namespace to which to limit this check",
 			Value:     &plugin.Namespace,
 		},
-		&sensu.PluginConfigOption{
+		{
 			Path:      "external",
 			Env:       "",
 			Argument:  "external",
@@ -52,7 +52,7 @@ var (
 			Usage:     "Connect to cluster externally (using kubeconfig)",
 			Value:     &plugin.External,
 		},
-		&sensu.PluginConfigOption{
+		{
 			Path:      "kubeconfig",
 			Env:       "KUBERNETES_CONFIG",
 			Argument:  "kubeconfig",
@@ -61,7 +61,7 @@ var (
 			Usage:     "Path to the kubeconfig file (default $HOME/.kube/config)",
 			Value:     &plugin.Kubeconfig,
 		},
-		&sensu.PluginConfigOption{
+		{
 			Path:      "object-kind",
 			Env:       "KUBERNETES_OBJECT_KIND",
 			Argument:  "object-kind",
