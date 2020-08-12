@@ -26,8 +26,8 @@ func TestCheckArgs(t *testing.T) {
 	event := corev2.FixtureEvent("entity1", "check1")
 	status, err := checkArgs(event)
 	assert.NoError(err)
-	assert.Equal(status, sensu.CheckStateOK)
-	assert.Equal(plugin.EventType, "=Normal")
+	assert.Equal(sensu.CheckStateOK, status)
+	assert.Equal("=Normal", plugin.EventType)
 }
 
 func TestCreateSensuEvent(t *testing.T) {
@@ -49,8 +49,15 @@ func TestCreateSensuEvent(t *testing.T) {
 	plugin.PluginConfig.Name = "kubernetes-event=check"
 	ev, err := createSensuEvent(k8sev)
 	assert.NoError(err)
-	assert.Equal(ev.Check.Status, uint32(1))
-	assert.Equal(ev.Check.ProxyEntityName, "test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b")
+	assert.Equal(uint32(1), ev.Check.Status)
+	assert.Equal("test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b", ev.Check.ProxyEntityName)
+	assert.Equal("sensu-a0b1c2d3e4-test.a0b1c2d3e4f5a6b7", ev.Check.ObjectMeta.Name)
+	k8sev.InvolvedObject.Kind = "Cluster"
+	k8sev.Message = "Error: BackOff"
+	ev, err = createSensuEvent(k8sev)
+	assert.NoError(err)
+	assert.Equal("cluster-test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b", ev.Check.ProxyEntityName)
+	assert.Equal("BackOff", ev.Check.ObjectMeta.Name)
 }
 
 func TestSubmitEventAgentAPI(t *testing.T) {
@@ -90,64 +97,6 @@ func TestGetSensuEventStatus(t *testing.T) {
 		plugin.StatusMap = tc.statusMap
 		st, err := getSensuEventStatus(tc.k8sEventType)
 		assert.NoError(err)
-		assert.Equal(st, tc.status)
+		assert.Equal(tc.status, st)
 	}
 }
-
-/* func TestCheckArgs(t *testing.T) {
-	assert := assert.New(t)
-	event := corev2.FixtureEvent("entity1", "check1")
-	event.Metrics = corev2.FixtureMetrics()
-	assert.Error(checkArgs(event))
-	plugin.Index = "sensu_events"
-	assert.Error(checkArgs(event))
-	plugin.URL = []string{"http://localhost:9200"}
-	assert.NoError(checkArgs(event))
-	plugin.Username = "user1"
-	assert.Error(checkArgs(event))
-	plugin.Password = "password1"
-	assert.NoError(checkArgs(event))
-}
-
-func TestParseEvent(t *testing.T) {
-	assert := assert.New(t)
-	event := corev2.FixtureEvent("entity1", "check1")
-	event.Metrics = corev2.FixtureMetrics()
-	plugin.Index = "sensu_events"
-	_, err := parseEvent(event)
-	assert.NoError(err)
-}
-
-func TestExecuteHandler(t *testing.T) {
-	testcases := []struct {
-		datedIndex   bool
-		indexURLPath string
-	}{
-		{false, "/sensu_events/_doc"},
-		{true, fmt.Sprintf("/sensu_events-%s/_doc", time.Now().Format("2006.01.02"))},
-	}
-
-	for _, tc := range testcases {
-		assert := assert.New(t)
-		event := corev2.FixtureEvent("entity1", "check1")
-		event.Metrics = corev2.FixtureMetrics()
-		plugin.Index = "sensu_events"
-		plugin.DatedIndex = tc.datedIndex
-
-		var test = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(html.EscapeString(r.URL.Path), tc.indexURLPath)
-			body, err := ioutil.ReadAll(r.Body)
-			assert.NoError(err)
-			eV := &EventValue{}
-			err = json.Unmarshal(body, eV)
-			assert.Equal(eV.Measurements["answer"], float64(42))
-			assert.Equal(eV.Metadata.Labels["answer.foo"], "bar")
-			require.NoError(t, err)
-		}))
-		_, err := url.ParseRequestURI(test.URL)
-		require.NoError(t, err)
-		plugin.URL = []string{test.URL}
-		assert.NoError(executeHandler(event))
-	}
-}
-*/
