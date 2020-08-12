@@ -200,6 +200,9 @@ func executeCheck(event *corev2.Event) (int, error) {
 		if time.Since(item.FirstTimestamp.Time).Seconds() <= float64(plugin.Interval) {
 			fmt.Printf("Event for %s %s in namespace %s, reason: %q, message: %q\n", item.InvolvedObject.Kind, item.ObjectMeta.Name, item.ObjectMeta.Namespace, item.Reason, item.Message)
 			event, err := createSensuEvent(item)
+			if err != nil {
+				return sensu.CheckStateCritical, err
+			}
 			err = submitEventAgentAPI(event)
 			if err != nil {
 				return sensu.CheckStateCritical, err
