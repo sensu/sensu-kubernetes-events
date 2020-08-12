@@ -1,13 +1,19 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/sensu-community/sensu-plugin-sdk/sensu"
-	"github.com/sensu/sensu-go/types"
+	corev2 "github.com/sensu/sensu-go/api/core/v2"
+	k8scorev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -18,11 +24,23 @@ import (
 // Config represents the check plugin config.
 type Config struct {
 	sensu.PluginConfig
-	External   bool
-	Namespace  string
-	Kubeconfig string
-	ObjectKind string
+	External       bool
+	Namespace      string
+	Kubeconfig     string
+	ObjectKind     string
+	EventType      string
+	Interval       uint32
+	Handlers       []string
+	LabelSelectors string
+	StatusMap      string
+	EventAPI       string
 }
+
+type eventStatusMap map[string]uint32
+
+const (
+	localEventAPI = "http://127.0.0.1:3031/events"
+)
 
 var (
 	plugin = Config{
@@ -67,39 +85,71 @@ var (
 			Argument:  "object-kind",
 			Shorthand: "k",
 			Default:   "",
-			Usage:     "Object kind to limit query to",
+			Usage:     "Object kind to limit query to (Pod, Cluster, etc.)",
 			Value:     &plugin.ObjectKind,
+		},
+		{
+			Path:      "event-type",
+			Env:       "KUBERNETES_EVENT_TYPE",
+			Argument:  "event-type",
+			Shorthand: "t",
+			Default:   "!=Normal",
+			Usage:     "Query for fieldSelector type (supports = and !=)",
+			Value:     &plugin.EventType,
+		},
+		{
+			Path:      "label-selectors",
+			Env:       "KUBERNETES_LABEL_SELECTORS",
+			Argument:  "label-selectors",
+			Shorthand: "l",
+			Default:   "",
+			Usage:     "Query for labelSelectors (e.g. release=stable,environment=qa)",
+			Value:     &plugin.LabelSelectors,
+		},
+		{
+			Path:      "status-map",
+			Env:       "KUBERNETES_STATUS_MAP",
+			Argument:  "status-map",
+			Shorthand: "s",
+			Default:   `{"normal": 0, "warning": 1, "default": 3}`,
+			Usage:     "Map Kubernetes event type to Sensu event status",
+			Value:     &plugin.StatusMap,
 		},
 	}
 )
 
 func main() {
-	check := sensu.NewGoCheck(&plugin.PluginConfig, options, checkArgs, executeCheck, false)
+	check := sensu.NewGoCheck(&plugin.PluginConfig, options, checkArgs, executeCheck, true)
 	check.Execute()
 }
 
-func checkArgs(event *types.Event) (int, error) {
+func checkArgs(event *corev2.Event) (int, error) {
 	if plugin.External {
 		if len(plugin.Kubeconfig) == 0 {
 			if home := homeDir(); home != "" {
 				plugin.Kubeconfig = filepath.Join(home, ".kube", "config")
 			}
 		}
+
+		// check to make sure plugin.EventType starts with = or !=, if not, prepend =
+		if !strings.HasPrefix(plugin.EventType, "!=") && !strings.HasPrefix(plugin.EventType, "=") {
+			plugin.EventType = fmt.Sprintf("=%s", plugin.EventType)
+		}
+
+		// Yes, setting this to a constant here, this is to facilitate testing
+		plugin.EventAPI = localEventAPI
+		// Pick these up from the STDIN event
+		plugin.Interval = event.Check.Interval
+		plugin.Handlers = event.Check.Handlers
 	}
 
 	return sensu.CheckStateOK, nil
 }
 
-func executeCheck(event *types.Event) (int, error) {
+func executeCheck(event *corev2.Event) (int, error) {
 
 	var config *rest.Config
 	var err error
-
-	opts := metav1.ListOptions{}
-
-	if len(plugin.ObjectKind) > 0 {
-		opts.FieldSelector = fmt.Sprintf("involvedObject.kind=%s", plugin.ObjectKind)
-	}
 
 	if plugin.External {
 		config, err = clientcmd.BuildConfigFromFlags("", plugin.Kubeconfig)
@@ -118,14 +168,43 @@ func executeCheck(event *types.Event) (int, error) {
 		return sensu.CheckStateCritical, fmt.Errorf("Failed to get clientset: %v", err)
 	}
 
-	//events, err := clientset.CoreV1().Events(plugin.Namespace).List(context.TODO(), metav1.ListOptions{})
-	events, err := clientset.CoreV1().Events(plugin.Namespace).List(context.TODO(), opts)
+	var fieldSelectors []string
+
+	if len(plugin.EventType) > 0 {
+		// The plugin.EventType should include its operator (=/!=) that's why the
+		// the string is abutted to the type string below
+		fieldSelectors = append(fieldSelectors, fmt.Sprintf("type%s", plugin.EventType))
+	}
+
+	if len(plugin.ObjectKind) > 0 {
+		fieldSelectors = append(fieldSelectors, fmt.Sprintf("involvedObject.kind=%s", plugin.ObjectKind))
+	}
+
+	listOptions := metav1.ListOptions{}
+
+	if len(fieldSelectors) > 0 {
+		listOptions.FieldSelector = strings.Join(fieldSelectors, ",")
+	}
+
+	if len(plugin.LabelSelectors) > 0 {
+		listOptions.LabelSelector = plugin.LabelSelectors
+	}
+
+	events, err := clientset.CoreV1().Events(plugin.Namespace).List(context.TODO(), listOptions)
 	if err != nil {
 		return sensu.CheckStateCritical, fmt.Errorf("Failed to get events: %v", err)
 	}
-	fmt.Printf("There are %d events in the cluster\n", len(events.Items))
+	fmt.Printf("There are %d event(s) in the cluster that match field %q and label %q\n", len(events.Items), listOptions.FieldSelector, listOptions.LabelSelector)
+
 	for _, item := range events.Items {
-		fmt.Printf("Namespace: %s Name: %s Count: %d Kind: %s %s-%s\n", item.ObjectMeta.Namespace, item.ObjectMeta.Name, item.Count, item.InvolvedObject.Kind, item.Reason, item.Message)
+		if time.Since(item.FirstTimestamp.Time).Seconds() <= float64(plugin.Interval) {
+			fmt.Printf("Type: %s Namespace: %s Name: %s Count: %d Kind: %s Reason: %s Message: %s\n", item.Type, item.ObjectMeta.Namespace, item.ObjectMeta.Name, item.Count, item.InvolvedObject.Kind, item.Reason, item.Message)
+			event, err := createSensuEvent(item)
+			err = submitEventAgentAPI(event)
+			if err != nil {
+				return sensu.CheckStateCritical, err
+			}
+		}
 	}
 
 	return sensu.CheckStateOK, nil
@@ -136,4 +215,56 @@ func homeDir() string {
 		return h
 	}
 	return os.Getenv("USERPROFILE") // windows
+}
+
+func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
+	event := &corev2.Event{}
+	event.Check = &corev2.Check{}
+	event.Check.ObjectMeta.Name = plugin.PluginConfig.Name
+	lowerKind := strings.ToLower(k8sEvent.InvolvedObject.Kind)
+	lowerName := strings.ToLower(k8sEvent.InvolvedObject.Name)
+	if lowerKind == "pod" {
+		event.Check.ProxyEntityName = lowerName
+	} else {
+		event.Check.ProxyEntityName = fmt.Sprintf("%s-%s", lowerKind, lowerName)
+	}
+	status, err := getSensuEventStatus(k8sEvent.Type)
+	if err != nil {
+		return &corev2.Event{}, err
+	}
+	event.Check.Status = status
+	event.Check.Interval = plugin.Interval
+	event.Check.Handlers = plugin.Handlers
+	event.Check.Output = fmt.Sprintf("Type: %s Namespace: %s Name: %s Count: %d Kind: %s Reason: %s Message: %s\n", k8sEvent.Type, k8sEvent.ObjectMeta.Namespace, k8sEvent.ObjectMeta.Name, k8sEvent.Count, k8sEvent.InvolvedObject.Kind, k8sEvent.Reason, k8sEvent.Message)
+	return event, nil
+}
+
+func submitEventAgentAPI(event *corev2.Event) error {
+
+	encoded, _ := json.Marshal(event)
+	resp, err := http.Post(plugin.EventAPI, "application/json", bytes.NewBuffer(encoded))
+	if err != nil {
+		return fmt.Errorf("Failed to post event to %s failed: %v", plugin.EventAPI, err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return fmt.Errorf("POST of event to %s failed with %v", plugin.EventAPI, resp.Status)
+	}
+
+	return nil
+}
+
+func getSensuEventStatus(eventType string) (uint32, error) {
+	statusMap := eventStatusMap{}
+	err := json.Unmarshal([]byte(strings.ToLower(plugin.StatusMap)), &statusMap)
+	if err != nil {
+		return 255, err
+	}
+	// attempt to map it to a specified status, if not see if a
+	// default status exists, otherwise return 255
+	if val, ok := statusMap[strings.ToLower(eventType)]; ok {
+		return val, nil
+	} else if val, ok = statusMap["default"]; ok {
+		return val, nil
+	}
+	return 255, nil
 }
