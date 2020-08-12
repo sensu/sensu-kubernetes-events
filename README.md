@@ -64,7 +64,7 @@ events in your Kubernetes environment(s).  For that reason, the default event ty
 Label selectors can be used to limit the scope of the Kubernetes events returned and checked against the requested event type.  You can specify multiple selectors by separating them by commas as options to the `--label-selectors` argument.
 
 #### Status map
-The status map allows you to map the event type (e.g. Normal, Warning) to a [Sensu event check result][7].  It is a simple JSON map represented as a string.  The event types are case-insensitive.  The default, below, shows that NORMAL maps to OK (0), Warning maps to Warning (1), and Default (anything else) maps to Unknown (3):
+The status map allows you to map the event type (e.g. Normal, Warning) to a [Sensu event check result][7].  It is a simple JSON map represented as a string.  The event types are case-insensitive.  The default, below, shows that Normal maps to OK (0), Warning maps to Warning (1), and Default (anything else) maps to Unknown (3):
 ```JSON
 {
   "Normal": 0,
