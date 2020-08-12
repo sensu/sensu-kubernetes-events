@@ -198,7 +198,7 @@ func executeCheck(event *corev2.Event) (int, error) {
 
 	for _, item := range events.Items {
 		if time.Since(item.FirstTimestamp.Time).Seconds() <= float64(plugin.Interval) {
-			fmt.Printf("Type: %s Namespace: %s Name: %s Count: %d Kind: %s Reason: %s Message: %s\n", item.Type, item.ObjectMeta.Namespace, item.ObjectMeta.Name, item.Count, item.InvolvedObject.Kind, item.Reason, item.Message)
+			fmt.Printf("Event for %s %s in namespace %s, reason: %q, message: %q\n", item.InvolvedObject.Kind, item.ObjectMeta.Name, item.ObjectMeta.Namespace, item.Reason, item.Message)
 			event, err := createSensuEvent(item)
 			err = submitEventAgentAPI(event)
 			if err != nil {
@@ -220,7 +220,13 @@ func homeDir() string {
 func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 	event := &corev2.Event{}
 	event.Check = &corev2.Check{}
-	event.Check.ObjectMeta.Name = plugin.PluginConfig.Name
+	msg := strings.Fields(k8sEvent.Message)
+	// If we have a definitive single word error mssage, use that as the check name
+	if len(msg) == 2 && msg[0] == "Error:" {
+		event.Check.ObjectMeta.Name = msg[1]
+	} else {
+		event.Check.ObjectMeta.Name = k8sEvent.ObjectMeta.Name
+	}
 	lowerKind := strings.ToLower(k8sEvent.InvolvedObject.Kind)
 	lowerName := strings.ToLower(k8sEvent.InvolvedObject.Name)
 	if lowerKind == "pod" {
@@ -235,7 +241,7 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 	event.Check.Status = status
 	event.Check.Interval = plugin.Interval
 	event.Check.Handlers = plugin.Handlers
-	event.Check.Output = fmt.Sprintf("Type: %s Namespace: %s Name: %s Count: %d Kind: %s Reason: %s Message: %s\n", k8sEvent.Type, k8sEvent.ObjectMeta.Namespace, k8sEvent.ObjectMeta.Name, k8sEvent.Count, k8sEvent.InvolvedObject.Kind, k8sEvent.Reason, k8sEvent.Message)
+	event.Check.Output = fmt.Sprintf("Event for %s %s in namespace %s, reason: %q, message: %q\n", k8sEvent.InvolvedObject.Kind, k8sEvent.ObjectMeta.Name, k8sEvent.ObjectMeta.Namespace, k8sEvent.Reason, k8sEvent.Message)
 	return event, nil
 }
 
