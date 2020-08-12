@@ -69,7 +69,7 @@ The status map allows you to map the event type (e.g. Normal, Warning) to a [Sen
 {
   "Normal": 0,
   "Warning": 1,
-  "Default": 2
+  "Default": 3
 }
 ```
 ## Configuration
