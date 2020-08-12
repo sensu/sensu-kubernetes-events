@@ -45,9 +45,9 @@ const (
 var (
 	plugin = Config{
 		PluginConfig: sensu.PluginConfig{
-			Name:     "sensu-kubernetes-checks",
-			Short:    "Sensu Kubernetes checks",
-			Keyspace: "sensu.io/plugins/sensu-kubernetes-checks/config",
+			Name:     "sensu-kubernetes-events",
+			Short:    "Sensu Kubernetes events check",
+			Keyspace: "sensu.io/plugins/sensu-kubernetes-events/config",
 		},
 	}
 

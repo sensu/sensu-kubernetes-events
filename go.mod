@@ -1,6 +1,6 @@
 // This is a generated file. Do not edit directly.
 
-module github.com/sensu/sensu-kubernetes-checks
+module github.com/sensu/sensu-kubernetes-events
 
 go 1.13
 
