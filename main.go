@@ -39,7 +39,7 @@ type Config struct {
 type eventStatusMap map[string]uint32
 
 const (
-	localEventAPI = "http://127.0.0.1:3031/events"
+	localEventAPI = "http://192.168.0.165:3031/events"
 )
 
 var (
@@ -194,11 +194,12 @@ func executeCheck(event *corev2.Event) (int, error) {
 	if err != nil {
 		return sensu.CheckStateCritical, fmt.Errorf("Failed to get events: %v", err)
 	}
-	fmt.Printf("There are %d event(s) in the cluster that match field %q and label %q\n", len(events.Items), listOptions.FieldSelector, listOptions.LabelSelector)
+
+	output := []string{}
 
 	for _, item := range events.Items {
 		if time.Since(item.FirstTimestamp.Time).Seconds() <= float64(plugin.Interval) {
-			fmt.Printf("Event for %s %s in namespace %s, reason: %q, message: %q\n", item.InvolvedObject.Kind, item.ObjectMeta.Name, item.ObjectMeta.Namespace, item.Reason, item.Message)
+			output = append(output, fmt.Sprintf("Event for %s %s in namespace %s, reason: %q, message: %q", item.InvolvedObject.Kind, item.ObjectMeta.Name, item.ObjectMeta.Namespace, item.Reason, item.Message))
 			event, err := createSensuEvent(item)
 			if err != nil {
 				return sensu.CheckStateCritical, err
@@ -208,6 +209,11 @@ func executeCheck(event *corev2.Event) (int, error) {
 				return sensu.CheckStateCritical, err
 			}
 		}
+	}
+
+	fmt.Printf("There are %d event(s) in the cluster that match field %q and label %q\n", len(output), listOptions.FieldSelector, listOptions.LabelSelector)
+	for _, out := range output {
+		fmt.Println(out)
 	}
 
 	return sensu.CheckStateOK, nil
