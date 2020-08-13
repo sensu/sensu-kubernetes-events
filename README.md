@@ -21,9 +21,14 @@
 
 ## Overview
 
-The Sensu Kubernetes events check is a [Sensu Check][2] that uses the [Kubernetes Event API][5] to identify events that should generate corresponding Sensu events.
+The Sensu Kubernetes events check is a [Sensu Check][2] that uses the
+[Kubernetes Event API][5] to identify events that should generate corresponding
+Sensu events.
 
-This check should be thought of as a meta-check.  The check itself, unless it encounters issues (e.g. trouble authenticating with Kubernetes for API access), will always return an OK status (exit code 0).  However, for each matching event type it does find, it will create separate events using the [agent API][6].
+This check should be thought of as a meta-check.  The check itself, unless it
+encounters issues (e.g. trouble authenticating with Kubernetes for API access),
+will always return an OK status (exit code 0).  However, for each matching event
+type it does find, it will create separate events using the [agent API][6].
 
 ## Usage examples
 ```
@@ -50,21 +55,37 @@ Flags:
 Use "sensu-kubernetes-events [command] --help" for more information about a command.
 
 ```
-#### API Authentication
-In order to query the API, the check must authenticate.  The normal use case would be for the check to be running from within a Kubernetes cluster and would make use of the `rest.InClusterConfig()` function to handle API host discovery and authentication automatically.  That is described [here][8].  This is the default behavior.  To use "external" access requires the use of [kubeconfig files][9] similar to the kubectl command.  This method is enabled via the `--external` flag.  Additionally, the `--kubeconfig` option can be used to point to an alternative kubeconfig file.
+#### API authentication
+In order to query the API, the check must authenticate.  The normal use case
+would be for the check to be running from within a Kubernetes cluster and would
+make use of the `rest.InClusterConfig()` function to handle API host discovery
+and authentication automatically.  That is described [here][8].  This is the
+default behavior.  To use "external" access requires the use of
+[kubeconfig files][9] similar to the kubectl command.  This method is enabled
+via the `--external` flag.  Additionally, the `--kubeconfig` option can be used
+to point to an alternative kubeconfig file.
 
 #### Object kind
-If an object kind is not specified via the `--object-kind` argument, events for all object kinds (cluster, pod, etc.) will be returned.
+If an object kind is not specified via the `--object-kind` argument, events for
+all object kinds (cluster, pod, etc.) will be returned.
 
 #### Event types
-The expected use case for this check is to find anomalous
-events in your Kubernetes environment(s).  For that reason, the default event type is `!=Normal`.
+The expected use case for this check is to find anomalous events in your
+Kubernetes environment(s).  For that reason, the default event type is
+`!=Normal`.
 
 #### Label selectors
-Label selectors can be used to limit the scope of the Kubernetes events returned and checked against the requested event type.  You can specify multiple selectors by separating them by commas as options to the `--label-selectors` argument.
+[Label selectors][10] can be used to limit the scope of the Kubernetes events
+returned and checked against the requested event type.  You can specify multiple
+selectors by separating them with commas as the value for the
+`--label-selectors` argument.
 
 #### Status map
-The status map allows you to map the event type (e.g. Normal, Warning) to a [Sensu event check result][7].  It is a simple JSON map represented as a string.  The event types are case-insensitive.  The default, below, shows that Normal maps to OK (0), Warning maps to Warning (1), and Default (anything else) maps to Unknown (3):
+The status map allows you to map the event type (e.g. Normal, Warning) to a
+[Sensu event check result][7].  It is a simple JSON map represented as a string.
+The event types are case-insensitive.  The default, below, shows that Normal
+maps to OK (0), Warning maps to Warning (1), and Default (anything else) maps to
+ Unknown (3):
 ```JSON
 {
   "Normal": 0,
@@ -76,15 +97,16 @@ The status map allows you to map the event type (e.g. Normal, Warning) to a [Sen
 
 ### Asset registration
 
-[Sensu Assets][3] are the best way to make use of this plugin. If you're not using an asset, please
-consider doing so! If you're using sensuctl 5.13 with Sensu Backend 5.13 or later, you can use the
-following command to add the asset:
+[Sensu Assets][3] are the best way to make use of this plugin. If you're not
+using an asset, please consider doing so! If you're using sensuctl 5.13 with
+Sensu Backend 5.13 or later, you can use the following command to add the asset:
 
 ```
 sensuctl asset add sensu/sensu-kubernetes-events
 ```
 
-If you're using an earlier version of sensuctl, you can find the asset on the [Bonsai Asset Index][4].
+If you're using an earlier version of sensuctl, you can find the asset on the
+[Bonsai Asset Index][4].
 
 ### Check definition
 
@@ -102,13 +124,19 @@ spec:
   runtime_assets:
   - sensu/sensu-kubernetes-events
   stdin: true
+  handlers:
+  - slack
 ```
+**Notes:**
+* The check definition requires `stdin` be set to `true`.
+* Any Events created by this check will include the handlers defined for it.
 
 ## Installation from source
 
-The preferred way of installing and deploying this plugin is to use it as an Asset. If you would
-like to compile and install the plugin from source or contribute to it, download the latest version
-or create an executable script from this source.
+The preferred way of installing and deploying this plugin is to use it as an
+Asset. If you would like to compile and install the plugin from source or
+contribute to it, download the latest version or create an executable binary
+from this source.
 
 From the local path of the sensu-kubernetes-events repository:
 
@@ -131,3 +159,4 @@ For more information about contributing to this plugin, see [Contributing][1].
 [7]: https://docs.sensu.io/sensu-go/latest/reference/checks/#check-result-specification
 [8]: https://kubernetes.io/docs/tasks/administer-cluster/access-cluster-api/#accessing-the-api-from-within-a-pod
 [9]: https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/
+[10]: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
