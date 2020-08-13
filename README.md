@@ -30,6 +30,9 @@ encounters issues (e.g. trouble authenticating with Kubernetes for API access),
 will always return an OK status (exit code 0).  However, for each matching event
 type it does find, it will create separate events using the [agent API][6].
 
+Given the above, when a matching event occurs, the check will need to be able
+to connect to the agent API on `http://127.0.0.1:3031/events`.
+
 ## Usage examples
 ```
 Sensu Kubernetes events check
