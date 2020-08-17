@@ -5,6 +5,7 @@
 # Sensu Kubernetes Events Check
 
 ## Table of Contents
+- [Discussion](#discussion)
 - [Overview](#overview)
 - [Usage examples](#usage-examples)
   - [API Authentication](#api-authentication)
@@ -18,6 +19,12 @@
 - [Installation from source](#installation-from-source)
 - [Additional notes](#additional-notes)
 - [Contributing](#contributing)
+
+## Discussion
+
+This plugin is in its early stages of development and we welcome your feedback on
+it and other future Kubernetes plugins.  Please visit the [Kubernetes SIG][11] on our
+[Discourse site][12] to provide feedback and submit feature requests.
 
 ## Overview
 
@@ -164,3 +171,5 @@ For more information about contributing to this plugin, see [Contributing][1].
 [8]: https://kubernetes.io/docs/tasks/administer-cluster/access-cluster-api/#accessing-the-api-from-within-a-pod
 [9]: https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/
 [10]: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+[11]: https://discourse.sensu.io/g/sig_kubernetes
+[12]: https://discourse.sensu.io/
