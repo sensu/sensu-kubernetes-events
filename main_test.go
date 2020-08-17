@@ -23,6 +23,7 @@ func TestCheckArgs(t *testing.T) {
 	assert := assert.New(t)
 	plugin.External = true
 	plugin.EventType = "Normal"
+	plugin.AgentAPIURL = "http://127.0.0.1:3031/events"
 	event := corev2.FixtureEvent("entity1", "check1")
 	status, err := checkArgs(event)
 	assert.NoError(err)
@@ -52,6 +53,12 @@ func TestCreateSensuEvent(t *testing.T) {
 	assert.Equal(uint32(1), ev.Check.Status)
 	assert.Equal("test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b", ev.Check.ProxyEntityName)
 	assert.Equal("sensu-a0b1c2d3e4-test.a0b1c2d3e4f5a6b7", ev.Check.ObjectMeta.Name)
+	k8sev.InvolvedObject.Kind = "Node"
+	ev, err = createSensuEvent(k8sev)
+	assert.NoError(err)
+	assert.Equal(uint32(1), ev.Check.Status)
+	assert.Equal("test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b", ev.Check.ProxyEntityName)
+	assert.Equal("sensu-a0b1c2d3e4-test.a0b1c2d3e4f5a6b7", ev.Check.ObjectMeta.Name)
 	k8sev.InvolvedObject.Kind = "Cluster"
 	k8sev.Message = "Error: BackOff"
 	ev, err = createSensuEvent(k8sev)
@@ -72,7 +79,7 @@ func TestSubmitEventAgentAPI(t *testing.T) {
 	}))
 	_, err := url.ParseRequestURI(test.URL)
 	require.NoError(t, err)
-	plugin.EventAPI = test.URL
+	plugin.AgentAPIURL = test.URL
 	assert.NoError(submitEventAgentAPI(event))
 }
 
