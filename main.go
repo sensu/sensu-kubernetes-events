@@ -245,9 +245,10 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 	}
 	lowerKind := strings.ToLower(k8sEvent.InvolvedObject.Kind)
 	lowerName := strings.ToLower(k8sEvent.InvolvedObject.Name)
-	if lowerKind == "pod" {
+	switch lowerKind {
+	case "pod", "node":
 		event.Check.ProxyEntityName = lowerName
-	} else {
+	default:
 		event.Check.ProxyEntityName = fmt.Sprintf("%s-%s", lowerKind, lowerName)
 	}
 	status, err := getSensuEventStatus(k8sEvent.Type)
