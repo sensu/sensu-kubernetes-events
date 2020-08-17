@@ -46,6 +46,7 @@ Available Commands:
   version     Print the version number of this plugin
 
 Flags:
+  -a, --agent-api-url string     The URL for the Agent API used to send events (default "http://127.0.0.1:3031/events")
   -t, --event-type string        Query for fieldSelector type (supports = and !=) (default "!=Normal")
   -e, --external                 Connect to cluster externally (using kubeconfig)
   -h, --help                     help for sensu-kubernetes-events

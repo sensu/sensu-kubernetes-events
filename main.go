@@ -33,14 +33,10 @@ type Config struct {
 	Handlers       []string
 	LabelSelectors string
 	StatusMap      string
-	EventAPI       string
+	AgentAPIURL    string
 }
 
 type eventStatusMap map[string]uint32
-
-const (
-	localEventAPI = "http://192.168.0.165:3031/events"
-)
 
 var (
 	plugin = Config{
@@ -115,6 +111,15 @@ var (
 			Usage:     "Map Kubernetes event type to Sensu event status",
 			Value:     &plugin.StatusMap,
 		},
+		{
+			Path:      "agent-api-url",
+			Env:       "KUBERNETES_AGENT_API_URL",
+			Argument:  "agent-api-url",
+			Shorthand: "a",
+			Default:   "http://127.0.0.1:3031/events",
+			Usage:     "The URL for the Agent API used to send events",
+			Value:     &plugin.AgentAPIURL,
+		},
 	}
 )
 
@@ -130,17 +135,19 @@ func checkArgs(event *corev2.Event) (int, error) {
 				plugin.Kubeconfig = filepath.Join(home, ".kube", "config")
 			}
 		}
+	}
 
-		// check to make sure plugin.EventType starts with = or !=, if not, prepend =
-		if !strings.HasPrefix(plugin.EventType, "!=") && !strings.HasPrefix(plugin.EventType, "=") {
-			plugin.EventType = fmt.Sprintf("=%s", plugin.EventType)
-		}
+	// check to make sure plugin.EventType starts with = or !=, if not, prepend =
+	if len(plugin.EventType) > 0 && !strings.HasPrefix(plugin.EventType, "!=") && !strings.HasPrefix(plugin.EventType, "=") {
+		plugin.EventType = fmt.Sprintf("=%s", plugin.EventType)
+	}
 
-		// Yes, setting this to a constant here, this is to facilitate testing
-		plugin.EventAPI = localEventAPI
-		// Pick these up from the STDIN event
-		plugin.Interval = event.Check.Interval
-		plugin.Handlers = event.Check.Handlers
+	// Pick these up from the STDIN event
+	plugin.Interval = event.Check.Interval
+	plugin.Handlers = event.Check.Handlers
+
+	if len(plugin.AgentAPIURL) == 0 {
+		return sensu.CheckStateCritical, fmt.Errorf("--agent-api-url or env var KUBERNETES_AGENT_API_URL required")
 	}
 
 	return sensu.CheckStateOK, nil
@@ -257,12 +264,12 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 func submitEventAgentAPI(event *corev2.Event) error {
 
 	encoded, _ := json.Marshal(event)
-	resp, err := http.Post(plugin.EventAPI, "application/json", bytes.NewBuffer(encoded))
+	resp, err := http.Post(plugin.AgentAPIURL, "application/json", bytes.NewBuffer(encoded))
 	if err != nil {
-		return fmt.Errorf("Failed to post event to %s failed: %v", plugin.EventAPI, err)
+		return fmt.Errorf("Failed to post event to %s failed: %v", plugin.AgentAPIURL, err)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("POST of event to %s failed with %v", plugin.EventAPI, resp.Status)
+		return fmt.Errorf("POST of event to %s failed with %v", plugin.AgentAPIURL, resp.Status)
 	}
 
 	return nil

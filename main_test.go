@@ -23,6 +23,7 @@ func TestCheckArgs(t *testing.T) {
 	assert := assert.New(t)
 	plugin.External = true
 	plugin.EventType = "Normal"
+	plugin.AgentAPIURL = "http://127.0.0.1/events"
 	event := corev2.FixtureEvent("entity1", "check1")
 	status, err := checkArgs(event)
 	assert.NoError(err)
@@ -72,7 +73,7 @@ func TestSubmitEventAgentAPI(t *testing.T) {
 	}))
 	_, err := url.ParseRequestURI(test.URL)
 	require.NoError(t, err)
-	plugin.EventAPI = test.URL
+	plugin.AgentAPIURL = test.URL
 	assert.NoError(submitEventAgentAPI(event))
 }
 
