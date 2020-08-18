@@ -242,18 +242,18 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 	lowerName := strings.ToLower(k8sEvent.InvolvedObject.Name)
 	lowerFieldPath := strings.ToLower(k8sEvent.InvolvedObject.FieldPath)
 	lowerComponent := strings.ToLower(k8sEvent.Source.Component)
-	
-  // Default labels 
+
+	// Default labels
 	event.ObjectMeta.Labels = make(map[string]string)
 	event.ObjectMeta.Labels["io.kubernetes.event.id"] = k8sEvent.ObjectMeta.Name
 	event.ObjectMeta.Labels["io.kubernetes.event.namespace"] = k8sEvent.ObjectMeta.Namespace
 
-  // Sensu Event Name
-  switch {
+	// Sensu Event Name
+	switch {
 	case lowerKind == "pod" && len(lowerFieldPath) > 0 && lowerFieldPath[:15] == "spec.containers":
 		// Pod-Container events
-		start     := strings.Index(lowerFieldPath,"{") +1
-		end       := strings.Index(lowerFieldPath,"}")
+		start := strings.Index(lowerFieldPath, "{") + 1
+		end := strings.Index(lowerFieldPath, "}")
 		container := lowerFieldPath[start:end]
 		switch {
 		case len(msg) == 2 && msg[0] == "Error:":
@@ -264,14 +264,14 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 			)
 		default:
 			event.Check.ObjectMeta.Name = fmt.Sprintf(
-				"container-%s-%s", 
+				"container-%s-%s",
 				strings.ToLower(container),
 				strings.ToLower(k8sEvent.Reason),
 			)
 		}
-	case lowerKind == "pod" && k8sEvent.Source.Component == "default-scheduler": 
-	  // Pod events
-	  event.Check.ObjectMeta.Name = fmt.Sprintf(
+	case lowerKind == "pod" && k8sEvent.Source.Component == "default-scheduler":
+		// Pod events
+		event.Check.ObjectMeta.Name = fmt.Sprintf(
 			"pod-%s",
 			strings.ToLower(k8sEvent.Reason),
 		)
@@ -283,14 +283,14 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 			strings.ToLower(k8sEvent.Reason),
 			lowerName,
 		)
-  case len(msg) == 2 && msg[0] == "Error:":
-    // If we have a definitive single word error mssage, use that as the check name
-    event.Check.ObjectMeta.Name = msg[1]
-  default: 
-    event.Check.ObjectMeta.Name = lowerName
-  }
+	case len(msg) == 2 && msg[0] == "Error:":
+		// If we have a definitive single word error mssage, use that as the check name
+		event.Check.ObjectMeta.Name = msg[1]
+	default:
+		event.Check.ObjectMeta.Name = lowerName
+	}
 
-  // Sensu Entity 
+	// Sensu Entity
 	switch lowerKind {
 	case "pod", "replicaset", "deployment", "node":
 		event.Check.ProxyEntityName = lowerName
