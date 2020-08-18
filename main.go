@@ -297,7 +297,7 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 		// If we have a definitive single word error mssage, use that as the check name
 		event.Check.ObjectMeta.Name = msg[1]
 	default:
-		event.Check.ObjectMeta.Name = lowerName
+		event.Check.ObjectMeta.Name = k8sEvent.ObjectMeta.Name
 	}
 
 	// Sensu Entity
