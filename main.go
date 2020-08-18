@@ -146,6 +146,10 @@ func checkArgs(event *corev2.Event) (int, error) {
 	plugin.Interval = event.Check.Interval
 	plugin.Handlers = event.Check.Handlers
 
+	if len(plugin.Namespace) == 0 {
+		plugin.Namespace = event.Check.Namespace
+	}
+
 	if len(plugin.AgentAPIURL) == 0 {
 		return sensu.CheckStateCritical, fmt.Errorf("--agent-api-url or env var KUBERNETES_AGENT_API_URL required")
 	}
@@ -250,7 +254,7 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 
 	// Sensu Event Name
 	switch {
-	case lowerKind == "pod" && len(lowerFieldPath) > 0 && lowerFieldPath[:15] == "spec.containers":
+	case lowerKind == "pod" && len(lowerFieldPath) > 0 && strings.HasPrefix(lowerFieldPath, "spec.containers"):
 		// Pod-Container events
 		start := strings.Index(lowerFieldPath, "{") + 1
 		end := strings.Index(lowerFieldPath, "}")
@@ -269,7 +273,7 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 				strings.ToLower(k8sEvent.Reason),
 			)
 		}
-	case lowerKind == "pod" && k8sEvent.Source.Component == "default-scheduler":
+	case lowerKind == "pod" && lowerComponent == "default-scheduler":
 		// Pod events
 		event.Check.ObjectMeta.Name = fmt.Sprintf(
 			"pod-%s",
@@ -283,6 +287,12 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 			strings.ToLower(k8sEvent.Reason),
 			lowerName,
 		)
+	case lowerKind == "endpoints" && lowerComponent == "endpoint-controller":
+		event.Check.ObjectMeta.Name = fmt.Sprintf(
+			"endpoint-%s-%s",
+			lowerName,
+			strings.ToLower(k8sEvent.Reason),
+		)
 	case len(msg) == 2 && msg[0] == "Error:":
 		// If we have a definitive single word error mssage, use that as the check name
 		event.Check.ObjectMeta.Name = msg[1]
@@ -292,10 +302,10 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 
 	// Sensu Entity
 	switch lowerKind {
-	case "pod", "replicaset", "deployment", "node":
+	case "pod", "replicaset", "deployment", "endpoints", "node":
 		event.Check.ProxyEntityName = lowerName
 	default:
-		event.Check.ProxyEntityName = fmt.Sprintf("%s-%s", lowerKind, lowerName)
+		event.Check.ProxyEntityName = fmt.Sprintf("%s-%s", lowerName, lowerKind)
 	}
 	status, err := getSensuEventStatus(k8sEvent.Type)
 	if err != nil {
