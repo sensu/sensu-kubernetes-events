@@ -63,7 +63,7 @@ func TestCreateSensuEvent(t *testing.T) {
 	k8sev.Message = "Error: BackOff"
 	ev, err = createSensuEvent(k8sev)
 	assert.NoError(err)
-	assert.Equal("cluster-test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b", ev.Check.ProxyEntityName)
+	assert.Equal("test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b-cluster", ev.Check.ProxyEntityName)
 	assert.Equal("BackOff", ev.Check.ObjectMeta.Name)
 }
 
