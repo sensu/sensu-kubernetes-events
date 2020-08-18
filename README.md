@@ -23,8 +23,8 @@
 ## Discussion
 
 This plugin is in its early stages of development and we welcome your feedback on
-it and other future Kubernetes plugins.  Please visit the [Kubernetes SIG][11] on our
-[Discourse site][12] to provide feedback and submit feature requests.
+it and other future Kubernetes plugins.  Please visit the [Kubernetes SIG][11] on the
+[Sensu Community Forums][12] to provide feedback and submit feature requests.
 
 ## Overview
 
@@ -71,10 +71,11 @@ In order to query the API, the check must authenticate.  The normal use case
 would be for the check to be running from within a Kubernetes cluster and would
 make use of the `rest.InClusterConfig()` function to handle API host discovery
 and authentication automatically.  That is described [here][8].  This is the
-default behavior.  To use "external" access requires the use of
-[kubeconfig files][9] similar to the kubectl command.  This method is enabled
-via the `--external` flag.  Additionally, the `--kubeconfig` option can be used
-to point to an alternative kubeconfig file.
+default behavior.
+
+To use "external" access requires the use of [kubeconfig files][9] similar to the
+kubectl command.  This method is enabled via the `--external` flag.  Additionally,
+the `--kubeconfig` option can be used to point to an alternative kubeconfig file.
 
 #### Object kind
 If an object kind is not specified via the `--object-kind` argument, events for
