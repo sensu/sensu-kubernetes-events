@@ -9,6 +9,7 @@
 - [Overview](#overview)
 - [Usage examples](#usage-examples)
   - [API Authentication](#api-authentication)
+  - [Namespaces](#namespaces)
   - [Object kind](#object-kind)
   - [Event types](#event-types)
   - [Label selectors](#label-selectors)
@@ -59,13 +60,20 @@ Flags:
   -h, --help                     help for sensu-kubernetes-events
   -c, --kubeconfig string        Path to the kubeconfig file (default $HOME/.kube/config)
   -l, --label-selectors string   Query for labelSelectors (e.g. release=stable,environment=qa)
-  -n, --namespace string         Namespace to which to limit this check
+  -n, --namespace string         Namespace to which to limit this check (defaults to check's namespace, use "all" for all namespaces)
   -k, --object-kind string       Object kind to limit query to (Pod, Cluster, etc.)
   -s, --status-map string        Map Kubernetes event type to Sensu event status (default "{\"normal\": 0, \"warning\": 1, \"default\": 3}")
 
 Use "sensu-kubernetes-events [command] --help" for more information about a command.
 
 ```
+#### Namespaces
+By default this check assumes your Sensu namespace matches up with your
+Kubernetes namespace and therefore uses that same namespace when querying
+the API for events.  You can override this with the `--namespace` flag.
+To have one check run for events from all Kubernetes namespaces, you can
+specify `--namespace all`.
+
 #### API authentication
 In order to query the API, the check must authenticate.  The normal use case
 would be for the check to be running from within a Kubernetes cluster and would
