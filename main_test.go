@@ -30,7 +30,7 @@ func TestCheckArgs(t *testing.T) {
 	assert.Equal(sensu.CheckStateOK, status)
 	assert.Equal("=Normal", plugin.EventType)
 	assert.Equal("default", plugin.Namespace)
-	plugin.Namespace  = "all"
+	plugin.Namespace = "all"
 	status, err = checkArgs(event)
 	assert.Equal(0, len(plugin.Namespace))
 }
