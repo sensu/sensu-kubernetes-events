@@ -248,6 +248,7 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 	lowerName := strings.ToLower(k8sEvent.InvolvedObject.Name)
 	lowerFieldPath := strings.ToLower(k8sEvent.InvolvedObject.FieldPath)
 	lowerComponent := strings.ToLower(k8sEvent.Source.Component)
+	lowerReason := strings.ToLower(k8sEvent.Reason)
 
 	// Default labels
 	event.ObjectMeta.Labels = make(map[string]string)
@@ -272,28 +273,35 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 			event.Check.ObjectMeta.Name = fmt.Sprintf(
 				"container-%s-%s",
 				strings.ToLower(container),
-				strings.ToLower(k8sEvent.Reason),
+				lowerReason,
 			)
 		}
 	case lowerKind == "pod" && lowerComponent == "default-scheduler":
 		// Pod events
 		event.Check.ObjectMeta.Name = fmt.Sprintf(
 			"pod-%s",
-			strings.ToLower(k8sEvent.Reason),
+			lowerReason,
+		)
+	case lowerKind == "replicaset" && len(strings.Split(k8sEvent.Message, "pod:")) == 2:
+		// This is a Replicaset event that should be associated with a Pod
+		message := strings.Split(k8sEvent.Message, "pod:")
+		event.Check.ObjectMeta.Name = fmt.Sprintf(
+			"pod-%s",
+			strings.ToLower(strings.TrimSpace(message[0])),
 		)
 	case lowerKind == "replicaset" && lowerComponent == "replicaset-controller":
 		event.Check.ObjectMeta.Name = strings.ToLower(k8sEvent.Reason)
 	case lowerKind == "deployment" && lowerComponent == "deployment-controller":
 		event.Check.ObjectMeta.Name = fmt.Sprintf(
 			"%s-%s",
-			strings.ToLower(k8sEvent.Reason),
+			lowerReason,
 			lowerName,
 		)
 	case lowerKind == "endpoints" && lowerComponent == "endpoint-controller":
 		event.Check.ObjectMeta.Name = fmt.Sprintf(
 			"endpoint-%s-%s",
 			lowerName,
-			strings.ToLower(k8sEvent.Reason),
+			lowerReason,
 		)
 	case len(msg) == 2 && msg[0] == "Error:":
 		// If we have a definitive single word error mssage, use that as the check name
@@ -304,7 +312,16 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 
 	// Sensu Entity
 	switch lowerKind {
-	case "pod", "replicaset", "deployment", "endpoints", "node":
+	case "replicaset":
+		message := strings.Split(k8sEvent.Message, "pod:")
+		if len(message) == 2 {
+			// associate this event with the pod
+			event.Check.ProxyEntityName = strings.ToLower(strings.TrimSpace(message[1]))
+		} else {
+			// associate this event with the replicaset
+			event.Check.ProxyEntityName = lowerName
+		}
+	case "pod", "deployment", "endpoints", "node":
 		event.Check.ProxyEntityName = lowerName
 	default:
 		event.Check.ProxyEntityName = fmt.Sprintf("%s-%s", lowerName, lowerKind)
