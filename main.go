@@ -237,16 +237,62 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 	event := &corev2.Event{}
 	event.Check = &corev2.Check{}
 	msg := strings.Fields(k8sEvent.Message)
-	// If we have a definitive single word error mssage, use that as the check name
-	if len(msg) == 2 && msg[0] == "Error:" {
-		event.Check.ObjectMeta.Name = msg[1]
-	} else {
-		event.Check.ObjectMeta.Name = k8sEvent.ObjectMeta.Name
-	}
+
 	lowerKind := strings.ToLower(k8sEvent.InvolvedObject.Kind)
 	lowerName := strings.ToLower(k8sEvent.InvolvedObject.Name)
+	lowerFieldPath := strings.ToLower(k8sEvent.InvolvedObject.FieldPath)
+	lowerComponent := strings.ToLower(k8sEvent.Source.Component)
+	
+  // Default labels 
+	event.ObjectMeta.Labels = make(map[string]string)
+	event.ObjectMeta.Labels["io.kubernetes.event.id"] = k8sEvent.ObjectMeta.Name
+	event.ObjectMeta.Labels["io.kubernetes.event.namespace"] = k8sEvent.ObjectMeta.Namespace
+
+  // Sensu Event Name
+  switch {
+	case lowerKind == "pod" && len(lowerFieldPath) > 0 && lowerFieldPath[:15] == "spec.containers":
+		// Pod-Container events
+		start     := strings.Index(lowerFieldPath,"{") +1
+		end       := strings.Index(lowerFieldPath,"}")
+		container := lowerFieldPath[start:end]
+		switch {
+		case len(msg) == 2 && msg[0] == "Error:":
+			event.Check.ObjectMeta.Name = fmt.Sprintf(
+				"container-%s-%s",
+				strings.ToLower(container),
+				strings.ToLower(msg[1]),
+			)
+		default:
+			event.Check.ObjectMeta.Name = fmt.Sprintf(
+				"container-%s-%s", 
+				strings.ToLower(container),
+				strings.ToLower(k8sEvent.Reason),
+			)
+		}
+	case lowerKind == "pod" && k8sEvent.Source.Component == "default-scheduler": 
+	  // Pod events
+	  event.Check.ObjectMeta.Name = fmt.Sprintf(
+			"pod-%s",
+			strings.ToLower(k8sEvent.Reason),
+		)
+	case lowerKind == "replicaset" && lowerComponent == "replicaset-controller":
+		event.Check.ObjectMeta.Name = strings.ToLower(k8sEvent.Reason)
+	case lowerKind == "deployment" && lowerComponent == "deployment-controller":
+		event.Check.ObjectMeta.Name = fmt.Sprintf(
+			"%s-%s",
+			strings.ToLower(k8sEvent.Reason),
+			lowerName,
+		)
+  case len(msg) == 2 && msg[0] == "Error:":
+    // If we have a definitive single word error mssage, use that as the check name
+    event.Check.ObjectMeta.Name = msg[1]
+  default: 
+    event.Check.ObjectMeta.Name = lowerName
+  }
+
+  // Sensu Entity 
 	switch lowerKind {
-	case "pod", "node":
+	case "pod", "replicaset", "deployment", "node":
 		event.Check.ProxyEntityName = lowerName
 	default:
 		event.Check.ProxyEntityName = fmt.Sprintf("%s-%s", lowerKind, lowerName)
