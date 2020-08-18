@@ -148,6 +148,8 @@ func checkArgs(event *corev2.Event) (int, error) {
 
 	if len(plugin.Namespace) == 0 {
 		plugin.Namespace = event.Check.Namespace
+	} else if plugin.Namespace == "all" {
+		plugin.Namespace = ""
 	}
 
 	if len(plugin.AgentAPIURL) == 0 {
