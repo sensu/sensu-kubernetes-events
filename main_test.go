@@ -123,6 +123,76 @@ func TestCreateSensuEvent(t *testing.T) {
 			k8sInvObjName,
 			"replicaset-noop",
 		},
+		{
+			"Deployment",
+			"",
+			"Normal",
+			"NoOp", //fake
+			"Verbed replica set deployment-bbd465f66-nbrpw", // fake to contain replica set
+			0,
+			k8sInvObjName,
+			"noop-deployment-bbd465f66-nbrpw",
+		},
+		{
+			"Deployment",
+			"",
+			"Normal",
+			"NoOp", //fake
+			"Verbed object: deployment-bbd465f66-nbrpw", // fake to not contain replica set
+			0,
+			k8sInvObjName,
+			"noop-" + k8sInvObjName,
+		},
+		{
+			"EndPoints",
+			"",
+			"Normal",
+			"NoOp", //fake
+			"Verbed object: endpoint-bbd465f66-nbrpw",
+			0,
+			k8sInvObjName,
+			"endpoint-" + k8sInvObjName + "-noop",
+		},
+		{
+			"Node",
+			"",
+			"Normal",
+			"Deleting Node", //fake
+			"Verbed object: endpoint-bbd465f66-nbrpw",
+			0,
+			k8sInvObjName,
+			"deletingnode",
+		},
+		{
+			"Node",
+			"",
+			"Normal",
+			"Node-NoOp", //fake
+			"Verbed object: endpoint-bbd465f66-nbrpw",
+			0,
+			k8sInvObjName,
+			"node-noop",
+		},
+		{
+			"UnknownKind",
+			"",
+			"Warning",
+			"Error: Failed", //fake
+			"Verbed object: endpoint-bbd465f66-nbrpw",
+			1,
+			k8sInvObjName + "-unknownkind",
+			k8sObjName,
+		},
+		{
+			"UnknownKind",
+			"",
+			"Normal",
+			"Nothing to see here", //fake
+			"Verbed object: endpoint-bbd465f66-nbrpw",
+			0,
+			k8sInvObjName + "-unknownkind",
+			k8sObjName,
+		},
 	}
 
 	// plugin constants
