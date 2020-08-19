@@ -29,9 +29,16 @@ func TestCheckArgs(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal(sensu.CheckStateOK, status)
 	assert.Equal("=Normal", plugin.EventType)
+	assert.Equal("default", plugin.Namespace)
+	plugin.Namespace = "all"
+	status, err = checkArgs(event)
+	assert.NoError(err)
+	assert.Equal(sensu.CheckStateOK, status)
+	assert.Equal(0, len(plugin.Namespace))
 }
 
 func TestCreateSensuEvent(t *testing.T) {
+	// Reorganize this into a set of testcases, it has grown to unwieldy
 	assert := assert.New(t)
 	k8sev := k8scorev1.Event{}
 	k8sev.InvolvedObject = k8scorev1.ObjectReference{}
@@ -41,8 +48,8 @@ func TestCreateSensuEvent(t *testing.T) {
 	k8sev.InvolvedObject.Kind = "Pod"
 	k8sev.InvolvedObject.Name = "test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b"
 	k8sev.Type = "Warning"
-	k8sev.Reason = "Because"
-	k8sev.Message = "All your base belong to us"
+	k8sev.Reason = "Failed"
+	k8sev.Message = "Error: ImagePullBackOff"
 	k8sev.Count = 1
 	plugin.StatusMap = `{"normal": 0, "warning": 1, "default": 3}`
 	plugin.Interval = 60
@@ -52,19 +59,35 @@ func TestCreateSensuEvent(t *testing.T) {
 	assert.NoError(err)
 	assert.Equal(uint32(1), ev.Check.Status)
 	assert.Equal("test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b", ev.Check.ProxyEntityName)
-	assert.Equal("sensu-a0b1c2d3e4-test.a0b1c2d3e4f5a6b7", ev.Check.ObjectMeta.Name)
+	assert.Equal("pod-failed", ev.Check.ObjectMeta.Name)
+
 	k8sev.InvolvedObject.Kind = "Node"
 	ev, err = createSensuEvent(k8sev)
 	assert.NoError(err)
 	assert.Equal(uint32(1), ev.Check.Status)
 	assert.Equal("test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b", ev.Check.ProxyEntityName)
-	assert.Equal("sensu-a0b1c2d3e4-test.a0b1c2d3e4f5a6b7", ev.Check.ObjectMeta.Name)
+	assert.Equal("failed", ev.Check.ObjectMeta.Name)
+
 	k8sev.InvolvedObject.Kind = "Cluster"
 	k8sev.Message = "Error: BackOff"
 	ev, err = createSensuEvent(k8sev)
 	assert.NoError(err)
-	assert.Equal("cluster-test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b", ev.Check.ProxyEntityName)
+	assert.Equal("test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b-cluster", ev.Check.ProxyEntityName)
 	assert.Equal("BackOff", ev.Check.ObjectMeta.Name)
+
+	k8sev.InvolvedObject.Kind = "Pod"
+	k8sev.InvolvedObject.FieldPath = "spec.containers{myservice}"
+	ev, err = createSensuEvent(k8sev)
+	assert.NoError(err)
+	assert.Equal("test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b", ev.Check.ProxyEntityName)
+	assert.Equal("container-myservice-backoff", ev.Check.ObjectMeta.Name)
+
+	k8sev.Message = "Pulling image \"wrongservice:latest\""
+	k8sev.Reason = "Pulling"
+	ev, err = createSensuEvent(k8sev)
+	assert.NoError(err)
+	assert.Equal("test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b", ev.Check.ProxyEntityName)
+	assert.Equal("container-myservice-pulling", ev.Check.ObjectMeta.Name)
 }
 
 func TestSubmitEventAgentAPI(t *testing.T) {
