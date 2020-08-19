@@ -345,7 +345,7 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 	case "deployment":
 		if len(strings.Split(lowerMessage, "replica set")) == 2 {
 			message := strings.Split(lowerMessage, "replica set")
-			replicaset := strings.Split(strings.TrimSpace(message[1]), " ")[0]
+			replicaset := strings.Fields(message[1])[0] // first word after "replica set"
 			event.Check.ObjectMeta.Name = fmt.Sprintf(
 				"%s-%s",
 				lowerReason,
@@ -388,7 +388,7 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 		message := strings.Split(k8sEvent.Message, "pod:")
 		if len(message) == 2 {
 			// associate this event with the pod
-			pod := strings.Split(strings.TrimSpace(message[1]), " ")[0]
+			pod := strings.Fields(message[1])[0]
 			event.Check.ProxyEntityName = strings.ToLower(pod)
 		} else {
 			// associate this event with the replicaset
