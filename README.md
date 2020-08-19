@@ -76,10 +76,10 @@ specify `--namespace all`.
 
 #### API authentication
 In order to query the API, the check must authenticate.  The normal use case
-would be for the check to be running from within a Kubernetes cluster and would
-make use of the `rest.InClusterConfig()` function to handle API host discovery
-and authentication automatically.  That is described [here][8].  This is the
-default behavior.
+would be for the check to be running in a container in a Kubernetes pod and
+would make use of the `rest.InClusterConfig()` function to handle API host
+discovery and authentication automatically.  That is described [here][8].
+This is the default behavior.
 
 To use "external" access requires the use of [kubeconfig files][9] similar to the
 kubectl command.  This method is enabled via the `--external` flag.  Additionally,
