@@ -242,7 +242,7 @@ func homeDir() string {
 func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 	event := &corev2.Event{}
 	event.Check = &corev2.Check{}
-	msg := strings.Fields(k8sEvent.Message)
+	msgFields := strings.Fields(k8sEvent.Message)
 
 	lowerKind := strings.ToLower(k8sEvent.InvolvedObject.Kind)
 	lowerName := strings.ToLower(k8sEvent.InvolvedObject.Name)
@@ -256,74 +256,130 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 	event.ObjectMeta.Labels["io.kubernetes.event.namespace"] = k8sEvent.ObjectMeta.Namespace
 
 	// Sensu Event Name
-	switch {
-	case lowerKind == "pod" && strings.HasPrefix(lowerFieldPath, "spec.containers"):
-		// Pod-Container events
-		start := strings.Index(lowerFieldPath, "{") + 1
-		end := strings.Index(lowerFieldPath, "}")
-		container := lowerFieldPath[start:end]
-		switch {
-		case len(msg) == 2 && msg[0] == "Error:":
+	switch lowerKind {
+	case "pod":
+		if strings.HasPrefix(lowerFieldPath, "spec.containers") {
+			// This is a Pod/Container event (i.e. an event that is associated with a
+			// K8s Pod resource, with reference to a specific container in the pod).
+			// Pod/Container event names need to be prefixed with container names to
+			// avoid event name collisions (e.g. container-influxdb-backoff vs
+			// container-grafana-backoff).
+			start := strings.Index(lowerFieldPath, "{") + 1
+			end := strings.Index(lowerFieldPath, "}")
+			container := lowerFieldPath[start:end]
+			if len(msgFields) == 2 && msgFields[0] == "Error:" {
+				// Expected outcome: container-<container_name>-<error>
+				//
+				// Examples:
+				// - container-nginx-imagepullbackoff
+				event.Check.ObjectMeta.Name = fmt.Sprintf(
+					"container-%s-%s",
+					strings.ToLower(container),
+					strings.ToLower(msgFields[1]),
+				)
+			} else {
+				// Expected outcome: container-<container_name>-<reason>
+				//
+				// Examples:
+				// - container-nginx-started
+				event.Check.ObjectMeta.Name = fmt.Sprintf(
+					"container-%s-%s",
+					strings.ToLower(container),
+					lowerReason,
+				)
+			}
+		} else {
+			// This is a Pod event.
+			//
+			// Expected outcome: pod-<reason>
+			//
+			// Examples:
+			// - pod-scheduled
+			// - pod-created
+			// - pod-deleted
 			event.Check.ObjectMeta.Name = fmt.Sprintf(
-				"container-%s-%s",
-				strings.ToLower(container),
-				strings.ToLower(msg[1]),
-			)
-		default:
-			event.Check.ObjectMeta.Name = fmt.Sprintf(
-				"container-%s-%s",
-				strings.ToLower(container),
+				"pod-%s",
 				lowerReason,
 			)
 		}
-	case lowerKind == "pod":
-		// Pod events
-		event.Check.ObjectMeta.Name = fmt.Sprintf(
-			"pod-%s",
-			lowerReason,
-		)
-	case lowerKind == "replicaset" && len(strings.Split(lowerMessage, "pod:")) == 2:
-		// This is a Replicaset event that should be associated with a Pod
-		message := strings.Split(lowerMessage, "pod:")
-		verb := strings.Split(strings.TrimSpace(message[0]), " ")[0]
-		event.Check.ObjectMeta.Name = fmt.Sprintf(
-			"pod-%s",
-			strings.ToLower(verb),
-		)
-	case lowerKind == "replicaset":
-		event.Check.ObjectMeta.Name = strings.ToLower(k8sEvent.Reason)
-	case lowerKind == "deployment" && len(strings.Split(lowerMessage, "replica set")) == 2:
-		message := strings.Split(lowerMessage, "replica set")
-		replicaset := strings.Split(strings.TrimSpace(message[1]), " ")[0]
-		event.Check.ObjectMeta.Name = fmt.Sprintf(
-			"%s-%s",
-			lowerReason,
-			strings.ToLower(replicaset),
-		)
-	case lowerKind == "deployment":
-		event.Check.ObjectMeta.Name = fmt.Sprintf(
-			"%s-%s",
-			lowerReason,
-			lowerName,
-		)
-	case lowerKind == "endpoints":
+	case "replicaset":
+		// Parse replicaset event.message values like "Created pod:
+		// nginx-bbd465f66-rwb2d" by splitting the string on "pod:".
+		if len(strings.Split(lowerMessage, "pod:")) == 2 {
+			// This is a Replicaset/Pod event (i.e. an event that is associated
+			// with a K8s Replicaset resource, with reference to a specific Pod
+			// that is managed by the Replicaset). Replicaset/Pod event names need
+			// are prefixed with "pod" for verbosity. NOTE: Replicaset/Pod events
+			// are also associated with the underlying Pod entity; see
+			// "switch lowerKind" (below) for more information.
+			//
+			// Expected outcome: pod-<reason>
+			//
+			// Examples:
+			// - pod-scheduled
+			// - pod-created
+			// - pod-deleted
+			//
+			// Many replicaset events have messages like "Created pod:
+			// nginx-bbd465f66-rwb2d". We want to capture the first word
+			// in this string as the event "verb".
+			verb := strings.ToLower(msgFields[0])
+			event.Check.ObjectMeta.Name = fmt.Sprintf(
+				"pod-%s",
+				verb,
+			)
+		} else {
+			// This is a Replicaset event.
+			//
+			// Expected outcome: <reason>
+			//
+			// Examples:
+			// - replicaset-deleted
+			event.Check.ObjectMeta.Name = strings.ToLower(
+				fmt.Sprintf(
+					"replicaset-%s",
+					k8sEvent.Reason,
+				),
+			)
+		}
+	case "deployment":
+		if len(strings.Split(lowerMessage, "replica set")) == 2 {
+			message := strings.Split(lowerMessage, "replica set")
+			replicaset := strings.Fields(message[1])[0] // first word after "replica set"
+			event.Check.ObjectMeta.Name = fmt.Sprintf(
+				"%s-%s",
+				lowerReason,
+				strings.ToLower(replicaset),
+			)
+		} else {
+			event.Check.ObjectMeta.Name = fmt.Sprintf(
+				"%s-%s",
+				lowerReason,
+				lowerName,
+			)
+		}
+	case "endpoints":
 		event.Check.ObjectMeta.Name = fmt.Sprintf(
 			"endpoint-%s-%s",
 			lowerName,
 			lowerReason,
 		)
-	case lowerKind == "node" && strings.HasPrefix(lowerReason, "deleting node"):
-		// Node deletion events "reason" field values are completely inconsistent
-		// with most other Node events
-		event.Check.ObjectMeta.Name = "deletingnode"
-	case lowerKind == "node":
-		// Most node events have pretty clean "reason" field values
-		event.Check.ObjectMeta.Name = lowerReason
-	case len(msg) == 2 && msg[0] == "Error:":
-		// If we have a definitive single word error mssage, use that as the check name
-		event.Check.ObjectMeta.Name = msg[1]
+	case "node":
+		if strings.HasPrefix(lowerReason, "deleting node") {
+			// Node deletion events "reason" field values are completely inconsistent
+			// with most other Node events
+			event.Check.ObjectMeta.Name = "deletingnode"
+		} else {
+			// Most node events have pretty clean "reason" field values
+			event.Check.ObjectMeta.Name = lowerReason
+		}
 	default:
-		event.Check.ObjectMeta.Name = k8sEvent.ObjectMeta.Name
+		if len(msgFields) == 2 && msgFields[0] == "Error:" {
+			// If we have a definitive single word error message, use that as the check name
+			event.Check.ObjectMeta.Name = msgFields[1]
+		} else {
+			event.Check.ObjectMeta.Name = k8sEvent.ObjectMeta.Name
+		}
 	}
 
 	// Sensu Entity
@@ -332,7 +388,7 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 		message := strings.Split(k8sEvent.Message, "pod:")
 		if len(message) == 2 {
 			// associate this event with the pod
-			pod := strings.Split(strings.TrimSpace(message[1]), " ")[0]
+			pod := strings.Fields(message[1])[0]
 			event.Check.ProxyEntityName = strings.ToLower(pod)
 		} else {
 			// associate this event with the replicaset
