@@ -256,74 +256,102 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 	event.ObjectMeta.Labels["io.kubernetes.event.namespace"] = k8sEvent.ObjectMeta.Namespace
 
 	// Sensu Event Name
-	switch {
-	case lowerKind == "pod" && strings.HasPrefix(lowerFieldPath, "spec.containers"):
-		// Pod-Container events
-		start := strings.Index(lowerFieldPath, "{") + 1
-		end := strings.Index(lowerFieldPath, "}")
-		container := lowerFieldPath[start:end]
-		switch {
-		case len(msg) == 2 && msg[0] == "Error:":
+	switch lowerKind {
+	case "pod":
+		if strings.HasPrefix(lowerFieldPath, "spec.containers") {
+			// Pod container events (i.e. events that are associated with a Pod
+			// resource, but reference a specific container in the pod). Pod
+			// container events need to be prefixed with container names to
+			// avoid event name collisions (e.g. container-influxdb-backoff vs
+			// container-grafana-backoff).
+			start := strings.Index(lowerFieldPath, "{") + 1
+			end := strings.Index(lowerFieldPath, "}")
+			container := lowerFieldPath[start:end]
+			if len(msg) == 2 && msg[0] == "Error:" {
+				// Expected outcome: container-<container_name>-<error>
+				//
+				// Examples:
+				// - container-nginx-imagepullbackoff
+				event.Check.ObjectMeta.Name = fmt.Sprintf(
+					"container-%s-%s",
+					strings.ToLower(container),
+					strings.ToLower(msg[1]),
+				)
+			} else {
+				// Expected outcome: container-<container_name>-<reason>
+				//
+				// Examples:
+				// - container-nginx-started
+				event.Check.ObjectMeta.Name = fmt.Sprintf(
+					"container-%s-%s",
+					strings.ToLower(container),
+					lowerReason,
+				)
+			}
+		} else {
+			// Pod events
+			//
+			// Expected outcome: pod-<reason>
+			//
+			// Examples:
+			// - pod-scheduled
+			// - pod-created
+			// - pod-deleted
 			event.Check.ObjectMeta.Name = fmt.Sprintf(
-				"container-%s-%s",
-				strings.ToLower(container),
-				strings.ToLower(msg[1]),
-			)
-		default:
-			event.Check.ObjectMeta.Name = fmt.Sprintf(
-				"container-%s-%s",
-				strings.ToLower(container),
+				"pod-%s",
 				lowerReason,
 			)
 		}
-	case lowerKind == "pod":
-		// Pod events
-		event.Check.ObjectMeta.Name = fmt.Sprintf(
-			"pod-%s",
-			lowerReason,
-		)
-	case lowerKind == "replicaset" && len(strings.Split(lowerMessage, "pod:")) == 2:
-		// This is a Replicaset event that should be associated with a Pod
-		message := strings.Split(lowerMessage, "pod:")
-		verb := strings.Split(strings.TrimSpace(message[0]), " ")[0]
-		event.Check.ObjectMeta.Name = fmt.Sprintf(
-			"pod-%s",
-			strings.ToLower(verb),
-		)
-	case lowerKind == "replicaset":
-		event.Check.ObjectMeta.Name = strings.ToLower(k8sEvent.Reason)
-	case lowerKind == "deployment" && len(strings.Split(lowerMessage, "replica set")) == 2:
-		message := strings.Split(lowerMessage, "replica set")
-		replicaset := strings.Split(strings.TrimSpace(message[1]), " ")[0]
-		event.Check.ObjectMeta.Name = fmt.Sprintf(
-			"%s-%s",
-			lowerReason,
-			strings.ToLower(replicaset),
-		)
-	case lowerKind == "deployment":
-		event.Check.ObjectMeta.Name = fmt.Sprintf(
-			"%s-%s",
-			lowerReason,
-			lowerName,
-		)
-	case lowerKind == "endpoints":
+	case "replicaset":
+		if len(strings.Split(lowerMessage, "pod:")) == 2 {
+			// This is a Replicaset event that should be associated with a Pod
+			message := strings.Split(lowerMessage, "pod:")
+			verb := strings.Split(strings.TrimSpace(message[0]), " ")[0]
+			event.Check.ObjectMeta.Name = fmt.Sprintf(
+				"pod-%s",
+				strings.ToLower(verb),
+			)
+		} else {
+			event.Check.ObjectMeta.Name = strings.ToLower(k8sEvent.Reason)
+		}
+	case "deployment":
+		if len(strings.Split(lowerMessage, "replica set")) == 2 {
+			message := strings.Split(lowerMessage, "replica set")
+			replicaset := strings.Split(strings.TrimSpace(message[1]), " ")[0]
+			event.Check.ObjectMeta.Name = fmt.Sprintf(
+				"%s-%s",
+				lowerReason,
+				strings.ToLower(replicaset),
+			)
+		} else {
+			event.Check.ObjectMeta.Name = fmt.Sprintf(
+				"%s-%s",
+				lowerReason,
+				lowerName,
+			)
+		}
+	case "endpoints":
 		event.Check.ObjectMeta.Name = fmt.Sprintf(
 			"endpoint-%s-%s",
 			lowerName,
 			lowerReason,
 		)
-	case lowerKind == "node" && strings.HasPrefix(lowerReason, "deleting node"):
-		// Node deletion events "reason" field values are completely inconsistent
-		// with most other Node events
-		event.Check.ObjectMeta.Name = "deletingnode"
-	case lowerKind == "node":
-		// Most node events have pretty clean "reason" field values
-		event.Check.ObjectMeta.Name = lowerReason
-	case len(msg) == 2 && msg[0] == "Error:":
-		// If we have a definitive single word error mssage, use that as the check name
-		event.Check.ObjectMeta.Name = msg[1]
+	case "node":
+		if strings.HasPrefix(lowerReason, "deleting node") {
+			// Node deletion events "reason" field values are completely inconsistent
+			// with most other Node events
+			event.Check.ObjectMeta.Name = "deletingnode"
+		} else {
+			// Most node events have pretty clean "reason" field values
+			event.Check.ObjectMeta.Name = lowerReason
+		}
 	default:
-		event.Check.ObjectMeta.Name = k8sEvent.ObjectMeta.Name
+		if len(msg) == 2 && msg[0] == "Error:" {
+			// If we have a definitive single word error message, use that as the check name
+			event.Check.ObjectMeta.Name = msg[1]
+		} else {
+			event.Check.ObjectMeta.Name = k8sEvent.ObjectMeta.Name
+		}
 	}
 
 	// Sensu Entity
