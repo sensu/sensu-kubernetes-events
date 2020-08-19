@@ -5,9 +5,11 @@
 # Sensu Kubernetes Events Check
 
 ## Table of Contents
+- [Discussion](#discussion)
 - [Overview](#overview)
 - [Usage examples](#usage-examples)
   - [API Authentication](#api-authentication)
+  - [Namespaces](#namespaces)
   - [Object kind](#object-kind)
   - [Event types](#event-types)
   - [Label selectors](#label-selectors)
@@ -18,6 +20,12 @@
 - [Installation from source](#installation-from-source)
 - [Additional notes](#additional-notes)
 - [Contributing](#contributing)
+
+## Discussion
+
+This plugin is in its early stages of development and we welcome your feedback on
+it and other future Kubernetes plugins.  Please visit the [Kubernetes SIG][11] on the
+[Sensu Community Forums][12] to provide feedback and submit feature requests.
 
 ## Overview
 
@@ -52,22 +60,30 @@ Flags:
   -h, --help                     help for sensu-kubernetes-events
   -c, --kubeconfig string        Path to the kubeconfig file (default $HOME/.kube/config)
   -l, --label-selectors string   Query for labelSelectors (e.g. release=stable,environment=qa)
-  -n, --namespace string         Namespace to which to limit this check
+  -n, --namespace string         Namespace to which to limit this check (defaults to check's namespace, use "all" for all namespaces)
   -k, --object-kind string       Object kind to limit query to (Pod, Cluster, etc.)
   -s, --status-map string        Map Kubernetes event type to Sensu event status (default "{\"normal\": 0, \"warning\": 1, \"default\": 3}")
 
 Use "sensu-kubernetes-events [command] --help" for more information about a command.
 
 ```
+#### Namespaces
+By default this check assumes your Sensu namespace matches up with your
+Kubernetes namespace and therefore uses that same namespace when querying
+the API for events.  You can override this with the `--namespace` flag.
+To have one check run for events from all Kubernetes namespaces, you can
+specify `--namespace all`.
+
 #### API authentication
 In order to query the API, the check must authenticate.  The normal use case
-would be for the check to be running from within a Kubernetes cluster and would
-make use of the `rest.InClusterConfig()` function to handle API host discovery
-and authentication automatically.  That is described [here][8].  This is the
-default behavior.  To use "external" access requires the use of
-[kubeconfig files][9] similar to the kubectl command.  This method is enabled
-via the `--external` flag.  Additionally, the `--kubeconfig` option can be used
-to point to an alternative kubeconfig file.
+would be for the check to be running in a container in a Kubernetes pod and
+would make use of the `rest.InClusterConfig()` function to handle API host
+discovery and authentication automatically.  That is described [here][8].
+This is the default behavior.
+
+To use "external" access requires the use of [kubeconfig files][9] similar to the
+kubectl command.  This method is enabled via the `--external` flag.  Additionally,
+the `--kubeconfig` option can be used to point to an alternative kubeconfig file.
 
 #### Object kind
 If an object kind is not specified via the `--object-kind` argument, events for
@@ -164,3 +180,5 @@ For more information about contributing to this plugin, see [Contributing][1].
 [8]: https://kubernetes.io/docs/tasks/administer-cluster/access-cluster-api/#accessing-the-api-from-within-a-pod
 [9]: https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/
 [10]: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+[11]: https://discourse.sensu.io/g/sig_kubernetes
+[12]: https://discourse.sensu.io/
