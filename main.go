@@ -257,7 +257,7 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 
 	// Sensu Event Name
 	switch {
-	case lowerKind == "pod" && len(lowerFieldPath) > 0 && strings.HasPrefix(lowerFieldPath, "spec.containers"):
+	case lowerKind == "pod" && strings.HasPrefix(lowerFieldPath, "spec.containers"):
 		// Pod-Container events
 		start := strings.Index(lowerFieldPath, "{") + 1
 		end := strings.Index(lowerFieldPath, "}")
