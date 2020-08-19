@@ -259,9 +259,9 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 	switch lowerKind {
 	case "pod":
 		if strings.HasPrefix(lowerFieldPath, "spec.containers") {
-			// Pod container events (i.e. events that are associated with a Pod
-			// resource, but reference a specific container in the pod). Pod
-			// container events need to be prefixed with container names to
+			// This is a Pod/Container event (i.e. an event that is associated with a
+			// K8s Pod resource, with reference to a specific container in the pod).
+			// Pod/Container event names need to be prefixed with container names to
 			// avoid event name collisions (e.g. container-influxdb-backoff vs
 			// container-grafana-backoff).
 			start := strings.Index(lowerFieldPath, "{") + 1
@@ -289,7 +289,7 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 				)
 			}
 		} else {
-			// Pod events
+			// This is a Pod event.
 			//
 			// Expected outcome: pod-<reason>
 			//
@@ -303,16 +303,45 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 			)
 		}
 	case "replicaset":
+		// Parse replicaset event.message values like "Created pod:
+		// nginx-bbd465f66-rwb2d" by splitting the string on "pod:".
 		if len(strings.Split(lowerMessage, "pod:")) == 2 {
-			// This is a Replicaset event that should be associated with a Pod
+			// This is a Replicaset/Pod event (i.e. an event that is associated
+			// with a K8s Replicaset resource, with reference to a specific Pod
+			// that is managed by the Replicaset). Replicaset/Pod event names need
+			// are prefixed with "pod" for verbosity. NOTE: Replicaset/Pod events
+			// are also associated with the underlying Pod entity; see
+			// "switch lowerKind" (below) for more information.
+			//
+			// Expected outcome: pod-<reason>
+			//
+			// Examples:
+			// - pod-scheduled
+			// - pod-created
+			// - pod-deleted
+			//
+			// Many replicaset events have messages like "Created pod:
+			// nginx-bbd465f66-rwb2d". We want to capture the first word
+			// in this string as the event "verb".
 			message := strings.Split(lowerMessage, "pod:")
-			verb := strings.Split(strings.TrimSpace(message[0]), " ")[0]
+			verb := strings.Split(strings.TrimSpace(message[0]), " ")[0] // this could be simpler
 			event.Check.ObjectMeta.Name = fmt.Sprintf(
 				"pod-%s",
 				strings.ToLower(verb),
 			)
 		} else {
-			event.Check.ObjectMeta.Name = strings.ToLower(k8sEvent.Reason)
+			// This is a Replicaset event.
+			//
+			// Expected outcome: <reason>
+			//
+			// Examples:
+			// - replicaset-deleted
+			event.Check.ObjectMeta.Name = strings.ToLower(
+				fmt.Sprintf(
+					"replicaset-%s",
+					k8sEvent.Reason,
+				),
+			)
 		}
 	case "deployment":
 		if len(strings.Split(lowerMessage, "replica set")) == 2 {
