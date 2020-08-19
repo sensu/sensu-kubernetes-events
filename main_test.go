@@ -103,6 +103,16 @@ func TestCreateSensuEvent(t *testing.T) {
 			k8sInvObjName + "-cluster",
 			"BackOff",
 		},
+		{
+			"ReplicaSet",
+			"",
+			"Normal",
+			"SuccessfulDelete",
+			"Deleted pod: myservice-bbd465f66-nbrpw",
+			0,
+			"myservice-bbd465f66-nbrpw",
+			"pod-deleted",
+		},
 	}
 
 	// plugin constants
