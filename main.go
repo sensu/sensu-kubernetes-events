@@ -347,6 +347,7 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 	if err != nil {
 		return &corev2.Event{}, err
 	}
+	event.Timestamp = k8sEvent.LastTimestamp.Time.Unix()
 	event.Check.Status = status
 	event.Check.Interval = plugin.Interval
 	event.Check.Handlers = plugin.Handlers
