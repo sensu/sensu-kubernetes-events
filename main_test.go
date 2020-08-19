@@ -38,56 +38,104 @@ func TestCheckArgs(t *testing.T) {
 }
 
 func TestCreateSensuEvent(t *testing.T) {
-	// Reorganize this into a set of testcases, it has grown to unwieldy
-	assert := assert.New(t)
-	k8sev := k8scorev1.Event{}
-	k8sev.InvolvedObject = k8scorev1.ObjectReference{}
-	k8sev.ObjectMeta = metav1.ObjectMeta{}
-	k8sev.ObjectMeta.Namespace = "namespace"
-	k8sev.ObjectMeta.Name = "sensu-a0b1c2d3e4-test.a0b1c2d3e4f5a6b7"
-	k8sev.InvolvedObject.Kind = "Pod"
-	k8sev.InvolvedObject.Name = "test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b"
-	k8sev.Type = "Warning"
-	k8sev.Reason = "Failed"
-	k8sev.Message = "Error: ImagePullBackOff"
-	k8sev.Count = 1
+	const (
+		k8sObjName    = "k8s-a0b1c2d3e4-event.a0b1c2d3e4f5a6b7"
+		k8sInvObjName = "k8s-0a1b2c3d4e-object.0a1b2c3d4e5f6a7b"
+	)
+
+	testcases := []struct {
+		k8sInvObjKind      string
+		k8sInvObjFieldPath string
+		k8sType            string
+		k8sReason          string
+		k8sMessage         string
+		evStatus           uint32
+		evEntityName       string
+		evCheckName        string
+	}{
+		{
+			"Pod",
+			"",
+			"Warning",
+			"Failed",
+			"Error: ImagePullBackOff",
+			1,
+			k8sInvObjName,
+			"pod-failed",
+		},
+		{
+			"Pod",
+			"spec.containers{myservice}",
+			"Warning",
+			"Failed",
+			"Error: ImagePullBackOff",
+			1,
+			k8sInvObjName,
+			"container-myservice-imagepullbackoff",
+		},
+		{
+			"Pod",
+			"spec.containers{myservice}",
+			"Normal",
+			"Pulling",
+			"Pulling image \"wrongimage:latest\"",
+			0,
+			k8sInvObjName,
+			"container-myservice-pulling",
+		},
+		{
+			"Node",
+			"spec.containers{myservice}",
+			"Warning",
+			"Failed",
+			"Error: ImagePullBackOff",
+			1,
+			k8sInvObjName,
+			"failed",
+		},
+		{
+			"Cluster",
+			"spec.containers{myservice}",
+			"Warning",
+			"Failed",
+			"Error: BackOff",
+			1,
+			k8sInvObjName + "-cluster",
+			"BackOff",
+		},
+	}
+
+	// plugin constants
 	plugin.StatusMap = `{"normal": 0, "warning": 1, "default": 3}`
 	plugin.Interval = 60
 	plugin.Handlers = []string{"slack"}
 	plugin.PluginConfig.Name = "kubernetes-event=check"
-	ev, err := createSensuEvent(k8sev)
-	assert.NoError(err)
-	assert.Equal(uint32(1), ev.Check.Status)
-	assert.Equal("test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b", ev.Check.ProxyEntityName)
-	assert.Equal("pod-failed", ev.Check.ObjectMeta.Name)
 
-	k8sev.InvolvedObject.Kind = "Node"
-	ev, err = createSensuEvent(k8sev)
-	assert.NoError(err)
-	assert.Equal(uint32(1), ev.Check.Status)
-	assert.Equal("test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b", ev.Check.ProxyEntityName)
-	assert.Equal("failed", ev.Check.ObjectMeta.Name)
+	for _, tc := range testcases {
+		assert := assert.New(t)
+		k8sev := k8scorev1.Event{}
+		k8sev.InvolvedObject = k8scorev1.ObjectReference{}
+		k8sev.ObjectMeta = metav1.ObjectMeta{}
 
-	k8sev.InvolvedObject.Kind = "Cluster"
-	k8sev.Message = "Error: BackOff"
-	ev, err = createSensuEvent(k8sev)
-	assert.NoError(err)
-	assert.Equal("test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b-cluster", ev.Check.ProxyEntityName)
-	assert.Equal("BackOff", ev.Check.ObjectMeta.Name)
+		// k8s event constants
+		k8sev.ObjectMeta.Namespace = "namespace"
+		k8sev.Count = 1
+		k8sev.ObjectMeta.Name = k8sObjName
+		k8sev.InvolvedObject.Name = k8sInvObjName
 
-	k8sev.InvolvedObject.Kind = "Pod"
-	k8sev.InvolvedObject.FieldPath = "spec.containers{myservice}"
-	ev, err = createSensuEvent(k8sev)
-	assert.NoError(err)
-	assert.Equal("test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b", ev.Check.ProxyEntityName)
-	assert.Equal("container-myservice-backoff", ev.Check.ObjectMeta.Name)
+		// test cases
+		k8sev.InvolvedObject.Kind = tc.k8sInvObjKind
+		k8sev.InvolvedObject.FieldPath = tc.k8sInvObjFieldPath
+		k8sev.Type = tc.k8sType
+		k8sev.Reason = tc.k8sReason
+		k8sev.Message = tc.k8sMessage
 
-	k8sev.Message = "Pulling image \"wrongservice:latest\""
-	k8sev.Reason = "Pulling"
-	ev, err = createSensuEvent(k8sev)
-	assert.NoError(err)
-	assert.Equal("test-0a1b2c3d4e-sensu.0a1b2c3d4e5f6a7b", ev.Check.ProxyEntityName)
-	assert.Equal("container-myservice-pulling", ev.Check.ObjectMeta.Name)
+		ev, err := createSensuEvent(k8sev)
+		assert.NoError(err)
+		assert.Equal(tc.evStatus, ev.Check.Status)
+		assert.Equal(tc.evEntityName, ev.Check.ProxyEntityName)
+		assert.Equal(tc.evCheckName, ev.Check.ObjectMeta.Name)
+	}
 }
 
 func TestSubmitEventAgentAPI(t *testing.T) {
