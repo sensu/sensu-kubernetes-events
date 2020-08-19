@@ -326,7 +326,7 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 			verb := strings.ToLower(msgFields[0])
 			event.Check.ObjectMeta.Name = fmt.Sprintf(
 				"pod-%s",
-				strings.ToLower(verb),
+				verb,
 			)
 		} else {
 			// This is a Replicaset event.
