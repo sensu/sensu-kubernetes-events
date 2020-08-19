@@ -242,7 +242,7 @@ func homeDir() string {
 func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 	event := &corev2.Event{}
 	event.Check = &corev2.Check{}
-	msg := strings.Fields(k8sEvent.Message)
+	msgFields := strings.Fields(k8sEvent.Message)
 
 	lowerKind := strings.ToLower(k8sEvent.InvolvedObject.Kind)
 	lowerName := strings.ToLower(k8sEvent.InvolvedObject.Name)
@@ -267,7 +267,7 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 			start := strings.Index(lowerFieldPath, "{") + 1
 			end := strings.Index(lowerFieldPath, "}")
 			container := lowerFieldPath[start:end]
-			if len(msg) == 2 && msg[0] == "Error:" {
+			if len(msgFields) == 2 && msgFields[0] == "Error:" {
 				// Expected outcome: container-<container_name>-<error>
 				//
 				// Examples:
@@ -275,7 +275,7 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 				event.Check.ObjectMeta.Name = fmt.Sprintf(
 					"container-%s-%s",
 					strings.ToLower(container),
-					strings.ToLower(msg[1]),
+					strings.ToLower(msgFields[1]),
 				)
 			} else {
 				// Expected outcome: container-<container_name>-<reason>
@@ -323,8 +323,7 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 			// Many replicaset events have messages like "Created pod:
 			// nginx-bbd465f66-rwb2d". We want to capture the first word
 			// in this string as the event "verb".
-			message := strings.Split(lowerMessage, "pod:")
-			verb := strings.Split(strings.TrimSpace(message[0]), " ")[0] // this could be simpler
+			verb := strings.ToLower(msgFields[0])
 			event.Check.ObjectMeta.Name = fmt.Sprintf(
 				"pod-%s",
 				strings.ToLower(verb),
@@ -375,9 +374,9 @@ func createSensuEvent(k8sEvent k8scorev1.Event) (*corev2.Event, error) {
 			event.Check.ObjectMeta.Name = lowerReason
 		}
 	default:
-		if len(msg) == 2 && msg[0] == "Error:" {
+		if len(msgFields) == 2 && msgFields[0] == "Error:" {
 			// If we have a definitive single word error message, use that as the check name
-			event.Check.ObjectMeta.Name = msg[1]
+			event.Check.ObjectMeta.Name = msgFields[1]
 		} else {
 			event.Check.ObjectMeta.Name = k8sEvent.ObjectMeta.Name
 		}
