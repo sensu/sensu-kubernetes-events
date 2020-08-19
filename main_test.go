@@ -113,6 +113,16 @@ func TestCreateSensuEvent(t *testing.T) {
 			"myservice-bbd465f66-nbrpw",
 			"pod-deleted",
 		},
+		{
+			"ReplicaSet",
+			"",
+			"Normal",
+			"NoOp", //fake
+			"Verbed object: myservice-bbd465f66-nbrpw", // fake to not contain pod:
+			0,
+			k8sInvObjName,
+			"replicaset-noop",
+		},
 	}
 
 	// plugin constants
