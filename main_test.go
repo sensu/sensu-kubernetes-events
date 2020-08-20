@@ -128,20 +128,20 @@ func TestCreateSensuEvent(t *testing.T) {
 			"",
 			"Normal",
 			"NoOp", //fake
-			"Verbed replica set deployment-bbd465f66-nbrpw", // fake to contain replica set
+			"Verbed replica set deployment-bbd465f66", // fake to contain replica set
 			0,
 			k8sInvObjName,
-			"noop-deployment-bbd465f66-nbrpw",
+			"replicaset-deployment-bbd465f66-noop",
 		},
 		{
 			"Deployment",
 			"",
 			"Normal",
 			"NoOp", //fake
-			"Verbed object: deployment-bbd465f66-nbrpw", // fake to not contain replica set
+			"Verbed object: deployment", // fake to not contain replica set
 			0,
 			k8sInvObjName,
-			"noop-" + k8sInvObjName,
+			k8sInvObjName + "-noop",
 		},
 		{
 			"EndPoints",
