@@ -484,8 +484,8 @@ func submitEventAgentAPI(event *corev2.Event) error {
 	if err != nil {
 		return fmt.Errorf("Failed to post event to %s failed: %v", plugin.AgentAPIURL, err)
 	}
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("POST of event to %s failed with %v", plugin.AgentAPIURL, resp.Status)
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("POST of event to %s failed with status %v\nevent: %s", plugin.AgentAPIURL, resp.Status, string(encoded))
 	}
 
 	return nil

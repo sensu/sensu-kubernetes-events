@@ -137,7 +137,7 @@ func TestCreateSensuEvent(t *testing.T) {
 			"Deployment",
 			"",
 			"Normal",
-			"NoOp", //fake
+			"NoOp",                      //fake
 			"Verbed object: deployment", // fake to not contain replica set
 			0,
 			k8sInvObjName,
@@ -229,19 +229,34 @@ func TestCreateSensuEvent(t *testing.T) {
 }
 
 func TestSubmitEventAgentAPI(t *testing.T) {
-	assert := assert.New(t)
-	event := corev2.FixtureEvent("entity1", "check1")
-	var test = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, err := ioutil.ReadAll(r.Body)
-		assert.NoError(err)
-		eV := &corev2.Event{}
-		err = json.Unmarshal(body, eV)
+	testcases := []struct {
+		httpStatus  int
+		expectError bool
+	}{
+		{http.StatusOK, false},
+		{http.StatusBadRequest, true},
+	}
+	for _, tc := range testcases {
+		assert := assert.New(t)
+		event := corev2.FixtureEvent("entity1", "check1")
+		var test = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, err := ioutil.ReadAll(r.Body)
+			assert.NoError(err)
+			eV := &corev2.Event{}
+			err = json.Unmarshal(body, eV)
+			require.NoError(t, err)
+			w.WriteHeader(tc.httpStatus)
+		}))
+		_, err := url.ParseRequestURI(test.URL)
 		require.NoError(t, err)
-	}))
-	_, err := url.ParseRequestURI(test.URL)
-	require.NoError(t, err)
-	plugin.AgentAPIURL = test.URL
-	assert.NoError(submitEventAgentAPI(event))
+		plugin.AgentAPIURL = test.URL
+		err = submitEventAgentAPI(event)
+		if tc.expectError {
+			assert.Error(err)
+		} else {
+			assert.NoError(err)
+		}
+	}
 }
 
 func TestGetSensuEventStatus(t *testing.T) {
