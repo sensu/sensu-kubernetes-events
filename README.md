@@ -138,7 +138,10 @@ metadata:
   name: sensu-kubernetes-events
   namespace: default
 spec:
-  command: sensu-kubernetes-events --example example_arg
+  command: >-
+    sensu-kubernetes-events
+    --agent-api-url http://127.0.0.1:3031/events
+    --event-type "!=Normal"
   subscriptions:
   - system
   runtime_assets:
