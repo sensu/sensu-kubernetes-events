@@ -178,7 +178,7 @@ For more information about contributing to this plugin, see [Contributing][1].
 [3]: https://docs.sensu.io/sensu-go/latest/reference/assets/
 [4]: https://bonsai.sensu.io/assets/sensu/sensu-kubernetes-events
 [5]: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.18/#event-v1-core
-[6]: https://docs.sensu.io/sensu-go/latest/reference/agent/#create-monitoring-events-using-the-agent-api
+[6]: https://docs.sensu.io/sensu-go/latest/reference/agent/#create-observability-events-using-the-agent-api
 [7]: https://docs.sensu.io/sensu-go/latest/reference/checks/#check-result-specification
 [8]: https://kubernetes.io/docs/tasks/administer-cluster/access-cluster-api/#accessing-the-api-from-within-a-pod
 [9]: https://kubernetes.io/docs/concepts/configuration/organize-cluster-access-kubeconfig/
